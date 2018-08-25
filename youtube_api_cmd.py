@@ -9,11 +9,14 @@ Email: chiragr83@gmail.com
 
 ========================
 """
-
+from __future__ import print_function, division, with_statement, absolute_import, unicode_literals
+import compatible
 import json
 import sys
-from urllib import *
 import argparse
+from urllib import *
+
+compatible.import_int()
 from urllib.parse import urlparse, urlencode, parse_qs
 from urllib.request import urlopen
 
@@ -95,17 +98,27 @@ def open_url(url, parms):
     return matches
 
 
-def load_comments(mat):
+def load_comments(mat, output=True):
+    comments = []
+
+    def get_snippet(obj):
+        return obj['snippet']
+
     for item in mat["items"]:
-        comment = item["snippet"]["topLevelComment"]
-        author = comment["snippet"]["authorDisplayName"]
-        text = comment["snippet"]["textDisplay"]
-        print("Comment by {}: {}".format(author, text))
+        item_snippet = get_snippet(item)
+        comment = item_snippet["topLevelComment"]
+        comment_snippet = get_snippet(comment)
+        author = comment_snippet["authorDisplayName"]
+        text = comment_snippet["textDisplay"]
+        if output:
+            print('{} - {}'.format(author, text))
         if 'replies' in item.keys():
             for reply in item['replies']['comments']:
-                rauthor = reply['snippet']['authorDisplayName']
-                rtext = reply["snippet"]["textDisplay"]
-            print("\n\tReply by {}: {}".format(rauthor, rtext), "\n")
+                reply_snippet = get_snippet(reply)
+                rauthor = reply_snippet['authorDisplayName']
+                rtext = reply_snippet["textDisplay"]
+                print(rauthor)
+                print(rtext)
 
 
 class YouTubeApi:

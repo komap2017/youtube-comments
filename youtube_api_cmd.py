@@ -15,10 +15,13 @@ import json
 import sys
 import argparse
 from urllib import *
+from io import open
+import sqlite3
 
 compatible.import_int()
-from urllib.parse import urlparse, urlencode, parse_qs
-from urllib.request import urlopen
+from urllib.parse import urlparse, parse_qs
+# from urllib.request import urlopen
+import requests
 
 YOUTUBE_COMMENT_URL = 'https://www.googleapis.com/youtube/v3/commentThreads'
 YOUTUBE_SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search'
@@ -70,7 +73,7 @@ def get_video_comment():
         next_page_token = mat.get(NEXT_PAGE_TOKEN)
         print("\nPage : 1")
         print("------------------------------------------------------------------")
-        load_comments(mat)
+        load_comments(mat, video_id=vid)
 
         while next_page_token:
             parms.update({'pageToken': next_page_token})
@@ -80,45 +83,64 @@ def get_video_comment():
             print("\nPage : ", i)
             print("------------------------------------------------------------------")
 
-            load_comments(mat)
+            load_comments(mat, video_id=vid)
 
             i += 1
     except KeyboardInterrupt:
         print("User Aborted the Operation")
 
-    except:
+    except Exception as e:
+        raise e
         print("Cannot Open URL or Fetch comments at a moment")
 
 
 def open_url(url, parms):
-    f = urlopen(url + '?' + urlencode(parms))
-    data = f.read()
-    f.close()
-    matches = data.decode("utf-8")
-    return matches
+    return requests.get(url, parms).text
+    # f = urlopen(url + '?' + urlencode(parms))
+    # data = f.read()
+    # f.close()
+    # matches = data.decode("utf-8")
+    # return matches
 
 
-def load_comments(mat, output=True):
-    comments = []
+def load_comments(mat, output=True, to_file='comments.txt', video_id=None):
+    conn = sqlite3.connect("youtube.sqlite")
 
+    # conn.execute("""CREATE TABLE IF NOT EXISTS comments()""")
+    # return
     def get_snippet(obj):
         return obj['snippet']
+
+    def show(com_author, com_text, date, rating, url, v_id):
+        if output:
+            sql = ''' INSERT INTO comments(author,comment,date,channel,video_id,rating)
+                      VALUES(?,?,?,?,?, ?) '''
+            task = (com_author, com_text, date, url, v_id, rating)
+            conn.execute(sql, task)
+            task = map(str, task)
+            t = ' - '.join(task)
+            print(t)
+
+    def get_all(snippet):
+        def get_key(key):
+            return snippet[key]
+
+        keys = ['authorDisplayName', 'textDisplay', 'publishedAt', 'likeCount', 'authorChannelUrl']
+        res = list(map(get_key, keys))
+        res.append(video_id)
+        return res
 
     for item in mat["items"]:
         item_snippet = get_snippet(item)
         comment = item_snippet["topLevelComment"]
         comment_snippet = get_snippet(comment)
-        author = comment_snippet["authorDisplayName"]
-        text = comment_snippet["textDisplay"]
-        if output:
-            print('{} - {}'.format(author, text))
+        show(*get_all(comment_snippet))
         if 'replies' in item.keys():
             for reply in item['replies']['comments']:
                 reply_snippet = get_snippet(reply)
-                rauthor = reply_snippet['authorDisplayName']
-                rtext = reply_snippet["textDisplay"]
-                print(rauthor)
-                print(rtext)
+                show(*get_all(reply_snippet))
+        conn.commit()
+    conn.close()
 
 
 class YouTubeApi:
